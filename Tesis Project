@@ -1,0 +1,132 @@
+#include <FirebaseESP32.h>
+
+// Turbidity Sensor
+#define TurbidityPin 35 // pin ADC untuk sensor turbidity
+#define relayPin4 18  // Relay 3 ke pompa pembuangan
+
+float ntuVoltage;
+int sensorValue;
+float adcValue;
+float ntuValue;
+String StatusPompa;
+
+// HC-SR04 Sensor
+const int trigPin = 27;
+const int echoPin = 32;
+
+// define sound speed in cm/uS
+#define SOUND_SPEED 0.034
+long duration;
+float distanceCm, distance;
+
+// Deklarasi Firebase
+FirebaseData firebaseData;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+// Kredensial Firebase
+#define FIREBASE_HOST "https://aaaaaaaaaaa-e96dc-default-rtdb.firebaseio.com/"
+#define FIREBASE_AUTH "nqE8VyiwSXmb5C7gQgH3qZeCROpzB7xTNyw6hOcR"
+
+// Kredensial WiFi
+#define WIFI_SSID "RirissiL"
+#define WIFI_PASSWORD "12345678"
+
+void setup() {
+  Serial.begin(115200);
+
+  // sensor Turbidity
+  pinMode(TurbidityPin, INPUT);
+  pinMode(relayPin4, OUTPUT); // relay terhubung ke pompa Filtrasi
+  digitalWrite(relayPin4, HIGH); // matikan relay pada awalnya
+
+  // sensor HC-SR04
+  pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
+  pinMode(echoPin, INPUT); // Sets the echoPin as an Input
+
+  // Koneksi WiFi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  // Inisialisasi konfigurasi Firebase
+  config.api_key = "AIzaSyAS1Zs_1k_NQzmv5O2oTrUpBYpUSpBQAM8";
+  config.host = FIREBASE_HOST;
+  config.signer.tokens.legacy_token = FIREBASE_AUTH;
+
+  // Mulai koneksi ke Firebase
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+
+  if (Firebase.ready()) {
+    Serial.println("Terhubung ke Firebase");
+  } else {
+    Serial.println("Gagal terhubung ke Firebase");
+    Serial.println("Karena: " + firebaseData.errorReason());
+  }
+}
+
+void loop() {
+  static unsigned long timepoint = millis();
+  if (millis() - timepoint > 2000U) {
+    timepoint = millis();
+
+    // Baca nilai sensor Turbidity
+    sensorValue = analogRead(TurbidityPin); // Membaca input pada pin analog A0
+    ntuVoltage = sensorValue * (3.3 / 4095); // Mengonversi pembacaan analog (yang berkisar dari 0 - 4095) menjadi tegangan (0 - 3.3V)
+    ntuValue = (10718.84479 * ntuVoltage * ntuVoltage) - (47329.99592 * ntuVoltage) + (52130.13021);
+
+    // Kontrol Pompa pembuangan air
+    if (ntuValue > 50) {
+      digitalWrite(relayPin4, LOW); // Aktifkan relay 4
+      StatusPompa = "Nyala"; 
+    }
+    if (ntuValue <= 40) {
+      digitalWrite(relayPin4, HIGH);
+      StatusPompa ="Mati";
+    }
+
+    // Baca nilai sensor HC-SR04
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    // Sets the trigPin on HIGH state for 10 micro seconds
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+
+    // Reads the echoPin, returns the sound wave travel time in microseconds
+    duration = pulseIn(echoPin, HIGH);
+
+    // Calculate the distance
+    distanceCm = duration * SOUND_SPEED / 2;
+    distance = (1.02837 * distanceCm - 0.32824);
+   
+    // Print nilai sensor ke serial monitor
+    Serial.print("Kekeruhan:");
+    Serial.print(ntuValue);
+    Serial.println("NTU");
+    Serial.print("Jarak: ");
+    Serial.print(distance);
+    Serial.println("cm");
+    Serial.print ("Kondisi:");
+    Serial.println (StatusPompa);
+
+    if (Firebase.setFloat(firebaseData, "/Hasil_Pembacaan/kekeruhan_air", ntuValue) &&
+        Firebase.setFloat(firebaseData, "/Hasil_Pembacaan/ketinggian_air", distance) &&
+        Firebase.setString(firebaseData, "/Hasil_Pembacaan/Status_Pompa", StatusPompa)) {
+          
+      Serial.println("Data terkirim");
+      Serial.println();
+    } else {
+      Serial.println("Data tidak terkirim");
+      Serial.println("Karena: " + firebaseData.errorReason());
+    }
+  }
+}
