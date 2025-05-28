@@ -1,0 +1,133 @@
+#define trigPin 9
+#define echoPin 10
+
+int ir1 = 8; //ir kanan --> untuk motor bawah
+int ir2 = 7; //ir kiriv--> untuk motor atas
+int sensor_kanan;
+int sensor_kiri;
+
+//motor bawah
+int motA1 = 3;
+int motA2 = 5;
+
+//motor atas
+int motB1 = 6;
+int motB2 = 9;
+
+//kecepatan mak dan terendah
+
+int turn_delay = 10;
+
+void belKanan() {
+  analogWrite(motA2, 255);
+  analogWrite(motA1, 0);
+
+  analogWrite(motB2, 0);
+  analogWrite(motB1, 150);
+
+}
+
+void belKiri() {
+  analogWrite(motA2, 150);
+  analogWrite(motA1, 0);
+
+  analogWrite(motB2, 0);
+  analogWrite(motB1, 255);
+
+}
+
+void maju () {
+  analogWrite(motA2, 255);
+  analogWrite(motA1, 0);
+
+  analogWrite(motB2, 0);
+  analogWrite(motB1, 255);
+
+}
+
+void stop() {
+  analogWrite(motA2, 0);
+  analogWrite(motA1, 0);
+
+  analogWrite(motB2, 0);
+  analogWrite(motB1, 0);
+
+}
+
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode (trigPin, OUTPUT);
+  pinMode (echoPin, INPUT);
+
+  pinMode(ir1, INPUT);
+  pinMode(ir2, INPUT);
+
+  pinMode(motA1, OUTPUT);
+  pinMode(motA2, OUTPUT);
+  pinMode(motB1, OUTPUT);
+  pinMode(motB2, OUTPUT);
+
+}
+
+void loop()
+{
+  //untuk sensor ultrasonik
+  float duration, distance;
+  digitalWrite (trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite (trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite (trigPin, LOW);
+  duration = pulseIn (echoPin, HIGH);
+  distance = 30; //(duration/2)/29.1;
+
+  //untuk sensor ir
+  sensor_kanan = digitalRead(ir1);
+  sensor_kiri = digitalRead(ir2);
+
+
+  Serial.print( "Nilai ir (kanan) 1 = ");
+  Serial.println(sensor_kanan);
+
+  Serial.print( "Nilai ir (kiri) 2 = ");
+  Serial.println(sensor_kiri);
+
+
+  Serial.print("Jarak= ");
+  Serial.println(distance);
+
+  if ((distance > 20) || (distance == 0)) {
+    //Turning Right
+    if ( sensor_kanan == 1 && sensor_kiri == 0) {
+      belKanan () ;
+      delay(turn_delay);
+
+    }
+
+    //Turning left
+    if ( sensor_kanan == 0 && sensor_kiri == 1) {
+      belKiri();
+      delay(turn_delay);
+    }
+
+    //lurus maju
+    if ( sensor_kanan == 1 && sensor_kiri == 1) {
+      maju ();
+      delay(turn_delay);
+    }
+
+    // stop
+    if ( sensor_kanan == 0 && sensor_kiri == 0) {
+      stop();
+      delay(turn_delay);
+    }
+
+  }
+  else {
+    stop();
+    delay(turn_delay);
+  }
+
+}
